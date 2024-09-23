@@ -29,10 +29,12 @@ Documentation: Add comments and documentation to clarify the purpose of differen
 Running the Script
 
 To run the script, you would use a command like:
-
 bash
+
 Copy code
+
 python your_script.py -u your_username -p your_password -i can0 -t your_topic -H mqtt_broker_host -P 8883 -input path/to/script.py
+
 Make sure to replace placeholders with your actual values. This will start the application and allow it to listen for messages on the CAN bus and the specified MQTT topic.
 
 If you have specific questions or need help with a particular aspect of the code, feel free to ask!
