@@ -1,0 +1,71 @@
+#Python script for a Raspberry Pi to bridge messages between a CAN bus and an MQTT broker. This script will read messages from the CAN bus and publish them to an MQTT topic, and it will subscribe to a topic to receive messages to be sent back to the CAN bus.
+#Install necessary libraries
+#python-can
+#paho-mqtt
+
+pip install python-can paho-mqtt
+
+import can
+import paho.mqtt.client as mqtt
+import time
+import json
+
+# CAN bus configuration
+can_interface = 'can0'
+bus = can.interface.Bus(can_interface, bustype='socketcan')
+
+# MQTT broker configuration
+MQTT_BROKER = 'broker_address'  # Replace with your MQTT broker address
+MQTT_PORT = 1883                # Default port for MQTT, change if needed
+MQTT_TOPIC_PUBLISH = 'canbus/to/mqtt'
+MQTT_TOPIC_SUBSCRIBE = 'mqtt/to/canbus'
+
+# Initialize MQTT client
+mqtt_client = mqtt.Client()
+
+def on_connect(client, userdata, flags, rc):
+    print("Connected to MQTT broker with code:", rc)
+    client.subscribe(MQTT_TOPIC_SUBSCRIBE)
+
+def on_message(client, userdata, msg):
+    print("Received message from MQTT:", msg.payload)
+    try:
+        message = json.loads(msg.payload)
+        can_id = message.get("id")
+        data = message.get("data")
+        if can_id is not None and data is not None:
+            msg = can.Message(arbitration_id=can_id, data=bytearray(data), is_extended_id=False)
+            bus.send(msg)
+            print("Message sent to CAN bus:", msg)
+    except Exception as e:
+        print("Failed to send message to CAN bus:", e)
+
+def can_to_mqtt():
+    while True:
+        try:
+            msg = bus.recv(timeout=1.0)
+            if msg:
+                message = {
+                    "id": msg.arbitration_id,
+                    "data": list(msg.data)
+                }
+                mqtt_client.publish(MQTT_TOPIC_PUBLISH, json.dumps(message))
+                print("Message sent to MQTT:", message)
+        except Exception as e:
+            print("Error reading from CAN bus:", e)
+        time.sleep(0.1)
+
+# MQTT client setup
+mqtt_client.on_connect = on_connect
+mqtt_client.on_message = on_message
+mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
+mqtt_client.loop_start()
+
+try:
+    print("Starting CAN bus to MQTT bridge...")
+    can_to_mqtt()
+except KeyboardInterrupt:
+    print("Stopping CAN bus to MQTT bridge...")
+finally:
+    mqtt_client.loop_stop()
+    bus.shutdown()
